@@ -84,12 +84,12 @@ func reconnectClient(client *sxutil.SXServiceClient) {
 func main() {
 	go sxutil.HandleSigInt()
 	sxutil.RegisterDeferFunction(sxutil.UnRegisterNode)
-	log.Printf("%s%d(%s) built %s sha1 %s", role, num, sxutil.GitVer, sxutil.BuildTime, sxutil.Sha1Ver)
+	log.Printf("%s%d(%s) built %s sha1 %s", role, *num, sxutil.GitVer, sxutil.BuildTime, sxutil.Sha1Ver)
 
 	channelTypes := []uint32{pbase.ALT_PT_SVC, pbase.JSON_DATA_SVC}
 
 	var rerr error
-	sxServerAddress, rerr = sxutil.RegisterNode(*nodesrv, fmt.Sprintf("%s%d", role, num), channelTypes, nil)
+	sxServerAddress, rerr = sxutil.RegisterNode(*nodesrv, fmt.Sprintf("%s%d", role, *num), channelTypes, nil)
 
 	if rerr != nil {
 		log.Fatal("Can't register node:", rerr)
@@ -109,8 +109,8 @@ func main() {
 		log.Print("Connecting SynerexServer")
 	}
 
-	rcmClient := sxutil.NewSXServiceClient(client, pbase.ALT_PT_SVC, fmt.Sprintf("{Client:%s%d}", role, num))
-	envClient := sxutil.NewSXServiceClient(client, pbase.JSON_DATA_SVC, fmt.Sprintf("{Client:%s%d}", role, num))
+	rcmClient := sxutil.NewSXServiceClient(client, pbase.ALT_PT_SVC, fmt.Sprintf("{Client:%s%d}", role, *num))
+	envClient := sxutil.NewSXServiceClient(client, pbase.JSON_DATA_SVC, fmt.Sprintf("{Client:%s%d}", role, *num))
 
 	wg.Add(1)
 	log.Print("Subscribe Supply")
