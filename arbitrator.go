@@ -60,15 +60,17 @@ func supplyJsonRecordCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 	if ta.Type == gjson.JSON {
 		log.Printf("TrafficAccident: %+v", ta.Value())
 
-		dmo := sxutil.DemandOpts{
-			Name: role,
-			JSON: fmt.Sprintf(`{ "臨時便": ["岩倉", "江南"] }`),
-		}
-		_, nerr := rcmClient.NotifyDemand(&dmo)
-		if nerr != nil {
-			log.Printf("Send Fail! %v\n", nerr)
-		} else {
-			//							log.Printf("Sent OK! %#v\n", ge)
+		if *num == 1 {
+			dmo := sxutil.DemandOpts{
+				Name: role,
+				JSON: fmt.Sprintf(`{ "臨時便": ["岩倉", "江南"] }`),
+			}
+			_, nerr := rcmClient.NotifyDemand(&dmo)
+			if nerr != nil {
+				log.Printf("Send Fail! %v\n", nerr)
+			} else {
+				//							log.Printf("Sent OK! %#v\n", ge)
+			}
 		}
 
 		// gess := &rcm.Recommend{
