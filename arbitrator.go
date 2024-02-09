@@ -9,6 +9,7 @@ import (
 	api "github.com/synerex/synerex_api"
 	pbase "github.com/synerex/synerex_proto"
 	sxutil "github.com/synerex/synerex_sxutil"
+	"github.com/tidwall/gjson"
 	"google.golang.org/protobuf/proto"
 
 	"log"
@@ -24,6 +25,8 @@ var (
 	version         = "0.0.0"
 	role            = "Arbitrator"
 	sxServerAddress string
+	TrafficAccident = "TrafficAccident"
+	rcmClient       *sxutil.SXServiceClient
 )
 
 func init() {
@@ -32,9 +35,13 @@ func init() {
 
 func supplyRecommendCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 	recommend := &rcm.Recommend{}
-	err := proto.Unmarshal(sp.Cdata.Entity, recommend)
-	if err == nil {
-		log.Printf("Received Recommend Supply from %d %+v", sp.SenderId, recommend)
+	if sp.Cdata != nil {
+		err := proto.Unmarshal(sp.Cdata.Entity, recommend)
+		if err == nil {
+			log.Printf("Received Recommend Supply from %d %+v", sp.SenderId, recommend)
+		}
+	} else {
+		log.Printf("Received JsonRecord Supply from %d %+v", sp.SenderId, sp.ArgJson)
 	}
 }
 
@@ -49,6 +56,45 @@ func subscribeRecommendSupply(client *sxutil.SXServiceClient) {
 
 func supplyJsonRecordCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 	log.Printf("Received JsonRecord Supply from %d %+v", sp.SenderId, sp.ArgJson)
+	ta := gjson.Get(sp.ArgJson, TrafficAccident)
+	if ta.Type == gjson.JSON {
+		log.Printf("TrafficAccident: %+v", ta.Value())
+
+		dmo := sxutil.DemandOpts{
+			Name: role,
+			JSON: fmt.Sprintf(`{ "臨時便": ["岩倉", "江南"] }`),
+		}
+		_, nerr := rcmClient.NotifyDemand(&dmo)
+		if nerr != nil {
+			log.Printf("Send Fail! %v\n", nerr)
+		} else {
+			//							log.Printf("Sent OK! %#v\n", ge)
+		}
+
+		// gess := &rcm.Recommend{
+		// 	RecommendId:   1,
+		// 	RecommendName: "asayu",
+		// 	RecommendSteps: []*rcm.RecommendStep{
+		// 		{
+		// 			MobilityType:  1,
+		// 			FromStationId: 2,
+		// 			ToStationId:   3,
+		// 		},
+		// 	},
+		// }
+		// out, _ := proto.Marshal(gess)
+		// cont := api.Content{Entity: out}
+		// smo := sxutil.SupplyOpts{
+		// 	Name:  role,
+		// 	Cdata: &cont,
+		// }
+		// _, nerr := clt.NotifySupply(&smo)
+		// if nerr != nil {
+		// 	log.Printf("Send Fail! %v\n", nerr)
+		// } else {
+		// 	//							log.Printf("Sent OK! %#v\n", ge)
+		// }
+	}
 }
 
 func subscribeJsonRecordSupply(client *sxutil.SXServiceClient) {
@@ -109,7 +155,7 @@ func main() {
 		log.Print("Connecting SynerexServer")
 	}
 
-	rcmClient := sxutil.NewSXServiceClient(client, pbase.ALT_PT_SVC, fmt.Sprintf("{Client:%s%d}", role, *num))
+	rcmClient = sxutil.NewSXServiceClient(client, pbase.ALT_PT_SVC, fmt.Sprintf("{Client:%s%d}", role, *num))
 	envClient := sxutil.NewSXServiceClient(client, pbase.JSON_DATA_SVC, fmt.Sprintf("{Client:%s%d}", role, *num))
 
 	wg.Add(1)
