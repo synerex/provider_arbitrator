@@ -28,6 +28,7 @@ var (
 	TrafficAccident = "TrafficAccident"
 	rcmClient       *sxutil.SXServiceClient
 	臨時便             = "臨時便"
+	pendingSp       *api.Supply
 )
 
 func init() {
@@ -39,18 +40,24 @@ func supplyRecommendDemandCallback(clt *sxutil.SXServiceClient, dm *api.Demand) 
 	if dm.Cdata != nil {
 		err := proto.Unmarshal(dm.Cdata.Entity, recommend)
 		if err == nil {
-			log.Printf("Received Recommend Demand from %d %+v", dm.SenderId, recommend)
-			if recommend.RecommendName == "A" {
-				_, nerr := clt.SelectDemand(dm)
+			log.Printf("Received Recommend Demand: Demand %+v, Recommend %+v", dm, recommend)
+			if *num == 1 && recommend.RecommendName == "A" {
+				dmid, nerr := clt.SelectDemand(dm)
 				if nerr != nil {
-					log.Printf("Send Fail! %v\n", nerr)
+					log.Printf("#5 SelectDemand Fail! %v\n", nerr)
 				} else {
-					//							log.Printf("Sent OK! %#v\n", ge)
+					log.Printf("#5 SelectDemand OK! dm: %#v, dmid: %d\n", dm, dmid)
+					spid, nerr := clt.SelectSupply(pendingSp)
+					if nerr != nil {
+						log.Printf("#7 SelectSupply Fail! %v\n", nerr)
+					} else {
+						log.Printf("#7 SelectSupply OK! sp: %#v, spid: %d\n", pendingSp, spid)
+					}
 				}
 			}
 		}
 	} else {
-		log.Printf("Received JsonRecord Demand from %d %+v", dm.SenderId, dm.ArgJson)
+		log.Printf("Received JsonRecord Demand: Demand %+v, JSON: %s", dm, dm.ArgJson)
 	}
 }
 
@@ -59,12 +66,13 @@ func supplyRecommendSupplyCallback(clt *sxutil.SXServiceClient, sp *api.Supply) 
 	if sp.Cdata != nil {
 		err := proto.Unmarshal(sp.Cdata.Entity, recommend)
 		if err == nil {
-			log.Printf("Received Recommend Supply from %d %+v", sp.SenderId, recommend)
+			log.Printf("Received Recommend Supply: Supply %+v, Recommend %+v", sp, recommend)
 		}
 	} else {
-		log.Printf("Received JsonRecord Supply from %d %+v", sp.SenderId, sp.ArgJson)
+		log.Printf("Received JsonRecord Supply: Supply %+v, JSON: %s", sp, sp.ArgJson)
 		ta := gjson.Get(sp.ArgJson, 臨時便)
 		if ta.Type == gjson.JSON {
+			pendingSp = sp
 			log.Printf("臨時便: %+v", ta.Value())
 			if *num == 1 {
 				gess := &rcm.Recommend{
@@ -85,15 +93,15 @@ func supplyRecommendSupplyCallback(clt *sxutil.SXServiceClient, sp *api.Supply) 
 				}
 				out, _ := proto.Marshal(gess)
 				cont := api.Content{Entity: out}
-				smo := sxutil.SupplyOpts{
+				spo := sxutil.SupplyOpts{
 					Name:  role,
 					Cdata: &cont,
 				}
-				_, nerr := clt.NotifySupply(&smo)
+				spid, nerr := clt.NotifySupply(&spo)
 				if nerr != nil {
-					log.Printf("Send Fail! %v\n", nerr)
+					log.Printf("#3 NotifySupply Fail! %v\n", nerr)
 				} else {
-					//							log.Printf("Sent OK! %#v\n", ge)
+					log.Printf("#3 NotifySupply OK! spo: %#v, spid: %d\n", spo, spid)
 				}
 			}
 		}
@@ -110,7 +118,7 @@ func subscribeRecommendSupply(client *sxutil.SXServiceClient) {
 }
 
 func supplyJsonRecordCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
-	log.Printf("Received JsonRecord Supply from %d %+v", sp.SenderId, sp.ArgJson)
+	log.Printf("Received JsonRecord Supply: Supply %+v, JSON: %s", sp, sp.ArgJson)
 	ta := gjson.Get(sp.ArgJson, TrafficAccident)
 	if ta.Type == gjson.JSON {
 		log.Printf("TrafficAccident: %+v", ta.Value())
@@ -120,11 +128,11 @@ func supplyJsonRecordCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 				Name: role,
 				JSON: fmt.Sprintf(`{ "臨時便": ["岩倉", "江南"] }`),
 			}
-			_, nerr := rcmClient.NotifyDemand(&dmo)
+			dmid, nerr := rcmClient.NotifyDemand(&dmo)
 			if nerr != nil {
-				log.Printf("Send Fail! %v\n", nerr)
+				log.Printf("#1 NotifyDemand Fail! %v\n", nerr)
 			} else {
-				//							log.Printf("Sent OK! %#v\n", ge)
+				log.Printf("#1 NotifyDemand OK! dmo: %#v, dmid: %d\n", dmo, dmid)
 			}
 		}
 	}
