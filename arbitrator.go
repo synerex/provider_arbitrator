@@ -27,13 +27,34 @@ var (
 	sxServerAddress string
 	TrafficAccident = "TrafficAccident"
 	rcmClient       *sxutil.SXServiceClient
+	臨時便             = "臨時便"
 )
 
 func init() {
 	flag.Parse()
 }
 
-func supplyRecommendCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
+func supplyRecommendDemandCallback(clt *sxutil.SXServiceClient, dm *api.Demand) {
+	recommend := &rcm.Recommend{}
+	if dm.Cdata != nil {
+		err := proto.Unmarshal(dm.Cdata.Entity, recommend)
+		if err == nil {
+			log.Printf("Received Recommend Demand from %d %+v", dm.SenderId, recommend)
+			if recommend.RecommendName == "A" {
+				_, nerr := clt.SelectDemand(dm)
+				if nerr != nil {
+					log.Printf("Send Fail! %v\n", nerr)
+				} else {
+					//							log.Printf("Sent OK! %#v\n", ge)
+				}
+			}
+		}
+	} else {
+		log.Printf("Received JsonRecord Demand from %d %+v", dm.SenderId, dm.ArgJson)
+	}
+}
+
+func supplyRecommendSupplyCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 	recommend := &rcm.Recommend{}
 	if sp.Cdata != nil {
 		err := proto.Unmarshal(sp.Cdata.Entity, recommend)
@@ -42,13 +63,47 @@ func supplyRecommendCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 		}
 	} else {
 		log.Printf("Received JsonRecord Supply from %d %+v", sp.SenderId, sp.ArgJson)
+		ta := gjson.Get(sp.ArgJson, 臨時便)
+		if ta.Type == gjson.JSON {
+			log.Printf("臨時便: %+v", ta.Value())
+			if *num == 1 {
+				gess := &rcm.Recommend{
+					RecommendId:   1,
+					RecommendName: "A",
+					RecommendSteps: []*rcm.RecommendStep{
+						{
+							MobilityType:  1,
+							FromStationId: 2,
+							ToStationId:   3,
+						},
+						{
+							MobilityType:  4,
+							FromStationId: 5,
+							ToStationId:   6,
+						},
+					},
+				}
+				out, _ := proto.Marshal(gess)
+				cont := api.Content{Entity: out}
+				smo := sxutil.SupplyOpts{
+					Name:  role,
+					Cdata: &cont,
+				}
+				_, nerr := clt.NotifySupply(&smo)
+				if nerr != nil {
+					log.Printf("Send Fail! %v\n", nerr)
+				} else {
+					//							log.Printf("Sent OK! %#v\n", ge)
+				}
+			}
+		}
 	}
 }
 
 func subscribeRecommendSupply(client *sxutil.SXServiceClient) {
 	ctx := context.Background() //
 	for {                       // make it continuously working..
-		client.SubscribeSupply(ctx, supplyRecommendCallback)
+		client.SubscribeSupply(ctx, supplyRecommendSupplyCallback)
 		log.Print("Error on subscribe")
 		reconnectClient(client)
 	}
@@ -72,30 +127,6 @@ func supplyJsonRecordCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 				//							log.Printf("Sent OK! %#v\n", ge)
 			}
 		}
-
-		// gess := &rcm.Recommend{
-		// 	RecommendId:   1,
-		// 	RecommendName: "asayu",
-		// 	RecommendSteps: []*rcm.RecommendStep{
-		// 		{
-		// 			MobilityType:  1,
-		// 			FromStationId: 2,
-		// 			ToStationId:   3,
-		// 		},
-		// 	},
-		// }
-		// out, _ := proto.Marshal(gess)
-		// cont := api.Content{Entity: out}
-		// smo := sxutil.SupplyOpts{
-		// 	Name:  role,
-		// 	Cdata: &cont,
-		// }
-		// _, nerr := clt.NotifySupply(&smo)
-		// if nerr != nil {
-		// 	log.Printf("Send Fail! %v\n", nerr)
-		// } else {
-		// 	//							log.Printf("Sent OK! %#v\n", ge)
-		// }
 	}
 }
 
@@ -163,6 +194,7 @@ func main() {
 	wg.Add(1)
 	log.Print("Subscribe Supply")
 	go subscribeRecommendSupply(rcmClient)
+	sxutil.SimpleSubscribeDemand(rcmClient, supplyRecommendDemandCallback)
 	go subscribeJsonRecordSupply(envClient)
 	wg.Wait()
 }
