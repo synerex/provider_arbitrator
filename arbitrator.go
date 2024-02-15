@@ -27,6 +27,7 @@ var (
 	sxServerAddress string
 	TrafficAccident = "TrafficAccident"
 	rcmClient       *sxutil.SXServiceClient
+	typeProp        = "type"
 	臨時便             = "臨時便"
 	pendingSp       *api.Supply
 )
@@ -70,8 +71,8 @@ func supplyRecommendSupplyCallback(clt *sxutil.SXServiceClient, sp *api.Supply) 
 		}
 	} else {
 		log.Printf("Received JsonRecord Supply: Supply %+v, JSON: %s", sp, sp.ArgJson)
-		ta := gjson.Get(sp.ArgJson, 臨時便)
-		if ta.Type == gjson.JSON {
+		ta := gjson.Get(sp.ArgJson, typeProp)
+		if ta.Type == gjson.String && ta.Str == 臨時便 {
 			pendingSp = sp
 			log.Printf("臨時便: %+v", ta.Value())
 			if *num == 1 {
