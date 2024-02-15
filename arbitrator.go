@@ -96,12 +96,44 @@ func supplyRecommendSupplyCallback(clt *sxutil.SXServiceClient, sp *api.Supply) 
 				spo := sxutil.SupplyOpts{
 					Name:  role,
 					Cdata: &cont,
+					JSON:  `{ "outlook": "2024/03/01 21:00", "cost": "600,000円", "CO2kg": 22.5 }`,
 				}
 				spid, nerr := clt.NotifySupply(&spo)
 				if nerr != nil {
-					log.Printf("#3 NotifySupply Fail! %v\n", nerr)
+					log.Printf("#3-1 NotifySupply Fail! %v\n", nerr)
 				} else {
-					log.Printf("#3 NotifySupply OK! spo: %#v, spid: %d\n", spo, spid)
+					log.Printf("#3-1 NotifySupply OK! spo: %#v, spid: %d\n", spo, spid)
+				}
+			}
+			if *num == 2 {
+				gess := &rcm.Recommend{
+					RecommendId:   2,
+					RecommendName: "B",
+					RecommendSteps: []*rcm.RecommendStep{
+						{
+							MobilityType:  7,
+							FromStationId: 8,
+							ToStationId:   9,
+						},
+						{
+							MobilityType:  10,
+							FromStationId: 11,
+							ToStationId:   12,
+						},
+					},
+				}
+				out, _ := proto.Marshal(gess)
+				cont := api.Content{Entity: out}
+				spo := sxutil.SupplyOpts{
+					Name:  role,
+					Cdata: &cont,
+					JSON:  `{ "outlook": "2024/03/01 23:00", "cost": "900,000円", "CO2kg": 2.0 }`,
+				}
+				spid, nerr := clt.NotifySupply(&spo)
+				if nerr != nil {
+					log.Printf("#3-2 NotifySupply Fail! %v\n", nerr)
+				} else {
+					log.Printf("#3-2 NotifySupply OK! spo: %#v, spid: %d\n", spo, spid)
 				}
 			}
 		}
@@ -126,7 +158,7 @@ func supplyJsonRecordCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 		if *num == 1 {
 			dmo := sxutil.DemandOpts{
 				Name: role,
-				JSON: fmt.Sprintf(`{ "臨時便": ["岩倉", "江南"] }`),
+				JSON: `{ "type": "臨時便", "vehicle": "マイクロバス", "date": "ASAP", "from": "岩倉駅", "to": "江南駅", "stops": "none", "way": "round-trip", "repetition": 4 }`,
 			}
 			dmid, nerr := rcmClient.NotifyDemand(&dmo)
 			if nerr != nil {
