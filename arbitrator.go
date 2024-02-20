@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"net/http"
 
 	rcm "github.com/synerex/proto_recommend"
 	api "github.com/synerex/synerex_api"
@@ -30,10 +32,25 @@ var (
 	typeProp        = "type"
 	臨時便             = "臨時便"
 	pendingSp       *api.Supply
+	supplySeleted   = false
 )
 
 func init() {
 	flag.Parse()
+}
+
+type ArbitratorStatus struct {
+	ShouldSupply    bool   `json:"should_supply"`
+	BusStop         string `json:"busstop"`
+	IsUp            bool   `json:"is_up"`
+	IsStartingPoint bool   `json:"is_starting_point"`
+	TravelTime      int    `json:"travel_time"`
+	Line            string `json:"line"`
+	End             string `json:"end"`
+	ArrivalTime     int    `json:"arrival_time"`
+	Next            string `json:"next"`
+	DepartureTime   int    `json:"departure_time"`
+	ID              int    `json:"id"`
 }
 
 func supplyRecommendDemandCallback(clt *sxutil.SXServiceClient, dm *api.Demand) {
@@ -53,6 +70,7 @@ func supplyRecommendDemandCallback(clt *sxutil.SXServiceClient, dm *api.Demand) 
 						log.Printf("#7 SelectSupply Fail! %v\n", nerr)
 					} else {
 						log.Printf("#7 SelectSupply OK! sp: %#v, spid: %d\n", pendingSp, spid)
+						supplySeleted = true
 					}
 				}
 			}
@@ -201,6 +219,33 @@ func reconnectClient(client *sxutil.SXServiceClient) {
 	mu.Unlock()
 }
 
+func arbitratorStatusHandler(w http.ResponseWriter, r *http.Request) {
+	status := ArbitratorStatus{ShouldSupply: false}
+	if supplySeleted {
+		status.ShouldSupply = true
+		status.BusStop = "b"
+		status.IsUp = false
+		status.IsStartingPoint = true
+		status.TravelTime = 14
+		status.Line = "bus"
+		status.End = "e"
+		status.ArrivalTime = 1
+		status.Next = "e"
+		status.DepartureTime = 3
+		status.ID = 0
+		supplySeleted = false
+	}
+	response, err := json.Marshal(status)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(response)
+}
+
 func main() {
 	go sxutil.HandleSigInt()
 	sxutil.RegisterDeferFunction(sxutil.UnRegisterNode)
@@ -237,5 +282,9 @@ func main() {
 	go subscribeRecommendSupply(rcmClient)
 	sxutil.SimpleSubscribeDemand(rcmClient, supplyRecommendDemandCallback)
 	go subscribeJsonRecordSupply(envClient)
+
+	http.HandleFunc("/api/v0/arbitrator_status", arbitratorStatusHandler)
+	fmt.Println("Server is running on port 804%d", *num)
+	go http.ListenAndServe(fmt.Sprintf(":804%d", *num), nil)
 	wg.Wait()
 }
