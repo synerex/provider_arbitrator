@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
 	rcm "github.com/synerex/proto_recommend"
@@ -175,15 +176,55 @@ func supplyJsonRecordCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 		log.Printf("TrafficAccident: %+v", ta.Value())
 
 		if *num == 1 {
-			dmo := sxutil.DemandOpts{
-				Name: role,
-				JSON: `{ "type": "臨時便", "vehicle": "マイクロバス", "date": "ASAP", "from": "岩倉駅", "to": "江南駅", "stops": "none", "way": "round-trip", "repetition": 4 }`,
+
+			url := fmt.Sprintf(`http://host.docker.internal:5000/api/v0/bus_can_diagram_adjust`)
+			resp, err := http.Get(url)
+			if err != nil {
+				fmt.Println("Error:", err)
+				return
 			}
-			dmid, nerr := rcmClient.NotifyDemand(&dmo)
-			if nerr != nil {
-				log.Printf("#1 NotifyDemand Fail! %v\n", nerr)
+			defer resp.Body.Close()
+
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				fmt.Println("Error:", err)
+				return
+			}
+
+			var result map[string]interface{}
+			err = json.Unmarshal([]byte(body), &result)
+			if err != nil {
+				fmt.Println("Error parsing JSON:", err)
+				return
+			}
+
+			index, ok := result["index"].(int)
+			if !ok {
+				fmt.Println("Error: index is not a number, defaulting to 0")
+				index = 0
 			} else {
-				log.Printf("#1 NotifyDemand OK! dmo: %#v, dmid: %d\n", dmo, dmid)
+				fmt.Printf("ID: %d\n", int(index))
+			}
+
+			demandDepartureTime, ok := result["demand_departure_time"].(int)
+			if !ok {
+				fmt.Println("Error: demand_departure_time is not a number, defaulting to 0")
+				demandDepartureTime = 0
+			} else {
+				fmt.Printf("Demand Departure Time: %d\n", int(demandDepartureTime))
+			}
+
+			if index > 0 {
+				dmo := sxutil.DemandOpts{
+					Name: role,
+					JSON: fmt.Sprintf(`{ "index": %d , "demand_departure_time": %d, "type": "臨時便", "vehicle": "マイクロバス", "date": "ASAP", "from": "岩倉駅", "to": "江南駅", "stops": "none", "way": "round-trip", "repetition": 4 }`, index, demandDepartureTime),
+				}
+				dmid, nerr := rcmClient.NotifyDemand(&dmo)
+				if nerr != nil {
+					log.Printf("#1 NotifyDemand Fail! %v\n", nerr)
+				} else {
+					log.Printf("#1 NotifyDemand OK! dmo: %#v, dmid: %d\n", dmo, dmid)
+				}
 			}
 		}
 	}
