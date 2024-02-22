@@ -261,6 +261,10 @@ func reconnectClient(client *sxutil.SXServiceClient) {
 }
 
 func arbitratorStatusHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	step := r.URL.Query().Get("step")
+	log.Printf("Called /api/v0/arbitrator_status id: %s, step: %s\n", id, step)
+
 	status := ArbitratorStatus{ShouldSupply: false}
 	if supplySeleted {
 		status.ShouldSupply = true
