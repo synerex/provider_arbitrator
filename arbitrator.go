@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"net/http"
+	"strconv"
 
 	rcm "github.com/synerex/proto_recommend"
 	api "github.com/synerex/synerex_api"
@@ -21,19 +21,20 @@ import (
 )
 
 var (
-	nodesrv         = flag.String("nodesrv", "127.0.0.1:9990", "Node ID Server")
-	local           = flag.String("local", "", "Local Synerex Server")
-	num             = flag.Int("num", 1, "Number of Arbitrator")
-	mu              sync.Mutex
-	version         = "0.0.0"
-	role            = "Arbitrator"
-	sxServerAddress string
-	TrafficAccident = "TrafficAccident"
-	rcmClient       *sxutil.SXServiceClient
-	typeProp        = "type"
-	臨時便             = "臨時便"
-	pendingSp       *api.Supply
-	supplySeleted   = false
+	nodesrv                 = flag.String("nodesrv", "127.0.0.1:9990", "Node ID Server")
+	local                   = flag.String("local", "", "Local Synerex Server")
+	num                     = flag.Int("num", 1, "Number of Arbitrator")
+	mu                      sync.Mutex
+	version                 = "0.0.0"
+	role                    = "Arbitrator"
+	sxServerAddress         string
+	TrafficAccident         = "TrafficAccident"
+	rcmClient               *sxutil.SXServiceClient
+	typeProp                = "type"
+	臨時便                     = "臨時便"
+	pendingSp               *api.Supply
+	supplySeleted           = false
+	wantBusCanDiagramAdjust = false
 )
 
 func init() {
@@ -52,6 +53,13 @@ type ArbitratorStatus struct {
 	Next            string `json:"next"`
 	DepartureTime   int    `json:"departure_time"`
 	ID              int    `json:"id"`
+}
+
+type BusCanDiagramAdjust struct {
+	Want                bool   `json:"want"`
+	Area                string `json:"area"`
+	Index               int    `json:"index"`
+	DemandDepartureTime int    `json:"demand_departure_time"`
 }
 
 func supplyRecommendDemandCallback(clt *sxutil.SXServiceClient, dm *api.Demand) {
@@ -176,56 +184,7 @@ func supplyJsonRecordCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 		log.Printf("TrafficAccident: %+v", ta.Value())
 
 		if *num == 1 {
-
-			url := fmt.Sprintf(`http://host.docker.internal:5000/api/v0/bus_can_diagram_adjust`)
-			resp, err := http.Get(url)
-			if err != nil {
-				fmt.Println("Error:", err)
-				return
-			}
-			defer resp.Body.Close()
-
-			body, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				fmt.Println("Error:", err)
-				return
-			}
-
-			var result map[string]interface{}
-			err = json.Unmarshal([]byte(body), &result)
-			if err != nil {
-				fmt.Println("Error parsing JSON:", err)
-				return
-			}
-
-			index, ok := result["index"].(int)
-			if !ok {
-				fmt.Println("Error: index is not a number, defaulting to 0")
-				index = 0
-			} else {
-				fmt.Printf("ID: %d\n", int(index))
-			}
-
-			demandDepartureTime, ok := result["demand_departure_time"].(int)
-			if !ok {
-				fmt.Println("Error: demand_departure_time is not a number, defaulting to 0")
-				demandDepartureTime = 0
-			} else {
-				fmt.Printf("Demand Departure Time: %d\n", int(demandDepartureTime))
-			}
-
-			if index > 0 {
-				dmo := sxutil.DemandOpts{
-					Name: role,
-					JSON: fmt.Sprintf(`{ "index": %d , "demand_departure_time": %d, "type": "臨時便", "vehicle": "マイクロバス", "date": "ASAP", "from": "岩倉駅", "to": "江南駅", "stops": "none", "way": "round-trip", "repetition": 4 }`, index, demandDepartureTime),
-				}
-				dmid, nerr := rcmClient.NotifyDemand(&dmo)
-				if nerr != nil {
-					log.Printf("#1 NotifyDemand Fail! %v\n", nerr)
-				} else {
-					log.Printf("#1 NotifyDemand OK! dmo: %#v, dmid: %d\n", dmo, dmid)
-				}
-			}
+			wantBusCanDiagramAdjust = true
 		}
 	}
 }
@@ -291,6 +250,60 @@ func arbitratorStatusHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(response)
 }
 
+func postBusCanDiagramAdjustHandler(w http.ResponseWriter, r *http.Request) {
+	log.Printf("Called /api/v0/post_bus_can_diagram_adjust\n")
+	indexStr := r.URL.Query().Get("index")
+	index, err := strconv.Atoi(indexStr)
+	demandDepartureTimeStr := r.URL.Query().Get("demand_departure_time")
+	demandDepartureTime, err2 := strconv.Atoi(demandDepartureTimeStr)
+
+	if err == nil && err2 == nil && index > 0 {
+		dmo := sxutil.DemandOpts{
+			Name: role,
+			JSON: fmt.Sprintf(`{ "index": %d , "demand_departure_time": %d, "type": "臨時便", "vehicle": "マイクロバス", "date": "ASAP", "from": "岩倉駅", "to": "江南駅", "stops": "none", "way": "round-trip", "repetition": 4 }`, index, demandDepartureTime),
+		}
+		dmid, nerr := rcmClient.NotifyDemand(&dmo)
+		if nerr != nil {
+			log.Printf("#1 NotifyDemand Fail! %v\n", nerr)
+		} else {
+			log.Printf("#1 NotifyDemand OK! dmo: %#v, dmid: %d\n", dmo, dmid)
+		}
+	}
+
+	status := BusCanDiagramAdjust{Want: false, Area: "a", Index: index, DemandDepartureTime: demandDepartureTime}
+
+	log.Printf("  -> Response: %+v\n", status)
+	response, err := json.Marshal(status)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(response)
+}
+
+func wantBusCanDiagramAdjustHandler(w http.ResponseWriter, r *http.Request) {
+	status := BusCanDiagramAdjust{Want: false}
+	if wantBusCanDiagramAdjust {
+		status.Want = true
+		status.Area = "B"
+		wantBusCanDiagramAdjust = false
+	}
+
+	log.Printf("Called /api/v0/want_bus_can_diagram_adjust -> Response: %+v\n", status)
+	response, err := json.Marshal(status)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(response)
+}
+
 func main() {
 	go sxutil.HandleSigInt()
 	sxutil.RegisterDeferFunction(sxutil.UnRegisterNode)
@@ -329,6 +342,8 @@ func main() {
 	go subscribeJsonRecordSupply(envClient)
 
 	http.HandleFunc("/api/v0/arbitrator_status", arbitratorStatusHandler)
+	http.HandleFunc("/api/v0/want_bus_can_diagram_adjust", wantBusCanDiagramAdjustHandler)
+	http.HandleFunc("/api/v0/post_bus_can_diagram_adjust", postBusCanDiagramAdjustHandler)
 	fmt.Println("Server is running on port 804%d", *num)
 	go http.ListenAndServe(fmt.Sprintf(":804%d", *num), nil)
 	wg.Wait()
