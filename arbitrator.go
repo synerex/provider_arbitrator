@@ -251,7 +251,6 @@ func arbitratorStatusHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func postBusCanDiagramAdjustHandler(w http.ResponseWriter, r *http.Request) {
-	log.Printf("Called /api/v0/post_bus_can_diagram_adjust\n")
 	indexStr := r.URL.Query().Get("index")
 	index, err := strconv.Atoi(indexStr)
 	demandDepartureTimeStr := r.URL.Query().Get("demand_departure_time")
@@ -272,7 +271,7 @@ func postBusCanDiagramAdjustHandler(w http.ResponseWriter, r *http.Request) {
 
 	status := BusCanDiagramAdjust{Want: false, Area: "a", Index: index, DemandDepartureTime: demandDepartureTime}
 
-	log.Printf("  -> Response: %+v\n", status)
+	log.Printf("Called /api/v0/post_bus_can_diagram_adjust -> Response: %+v\n", status)
 	response, err := json.Marshal(status)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
