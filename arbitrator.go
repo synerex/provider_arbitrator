@@ -269,7 +269,7 @@ func postBusCanDiagramAdjustHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	status := BusCanDiagramAdjust{Want: false, Area: "a", Index: index, DemandDepartureTime: demandDepartureTime}
+	status := BusCanDiagramAdjust{Want: false, Area: "B", Index: index, DemandDepartureTime: demandDepartureTime}
 
 	log.Printf("Called /api/v0/post_bus_can_diagram_adjust -> Response: %+v\n", status)
 	response, err := json.Marshal(status)
