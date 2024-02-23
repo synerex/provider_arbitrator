@@ -229,13 +229,13 @@ func arbitratorStatusHandler(w http.ResponseWriter, r *http.Request) {
 		status.BusStop = "b"
 		status.IsUp = false
 		status.IsStartingPoint = true
-		status.TravelTime = 14
-		status.Line = "bus"
-		status.End = "e"
-		status.ArrivalTime = 1
-		status.Next = "e"
-		status.DepartureTime = 3
-		status.ID = 0
+		status.TravelTime = 22
+		status.Line = "tempbus"
+		status.End = "C"
+		status.ArrivalTime = 70
+		status.Next = "C"
+		status.DepartureTime = 80
+		status.ID = 9999
 		supplySeleted = false
 	}
 
