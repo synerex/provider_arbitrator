@@ -112,22 +112,17 @@ func supplyRecommendSupplyCallback(clt *sxutil.SXServiceClient, sp *api.Supply) 
 	} else {
 		log.Printf("Received JsonRecord Supply: Supply %+v, JSON: %s", sp, sp.ArgJson)
 		ta := gjson.Get(sp.ArgJson, typeProp)
-		if ta.Type == gjson.String && ta.Str == 臨時便 { // Arbitrator 1
+		if ta.Type == gjson.String && ta.Str == 臨時便 && *num == 1 { // Arbitrator 1
 			pendingSp = sp
-			log.Printf("%s: %+v", 臨時便, ta.Value())
+			log.Printf("Arbitrator %d: %s", *num, ta.Value())
 			gess := &rcm.Recommend{
 				RecommendId:   1,
 				RecommendName: "A",
 				RecommendSteps: []*rcm.RecommendStep{
 					{
-						MobilityType:  1,
-						FromStationId: 2,
-						ToStationId:   3,
-					},
-					{
-						MobilityType:  4,
-						FromStationId: 5,
-						ToStationId:   6,
+						MobilityType:  "tempbus",
+						FromStationId: "b",
+						ToStationId:   "C",
 					},
 				},
 			}
@@ -145,22 +140,17 @@ func supplyRecommendSupplyCallback(clt *sxutil.SXServiceClient, sp *api.Supply) 
 				log.Printf("#3-1 NotifySupply OK! spo: %#v, spid: %d\n", spo, spid)
 			}
 		}
-		if ta.Type == gjson.String && ta.Str == ダイヤ調整 { // Arbitrator 2
+		if ta.Type == gjson.String && ta.Str == ダイヤ調整 && *num == 2 { // Arbitrator 2
 			pendingSp = sp
-			log.Printf("%s: %+v", ダイヤ調整, ta.Value())
+			log.Printf("Arbitrator %d: %s", *num, ta.Value())
 			gess := &rcm.Recommend{
 				RecommendId:   2,
 				RecommendName: "B",
 				RecommendSteps: []*rcm.RecommendStep{
 					{
-						MobilityType:  7,
-						FromStationId: 8,
-						ToStationId:   9,
-					},
-					{
-						MobilityType:  10,
-						FromStationId: 11,
-						ToStationId:   12,
+						MobilityType:  "bus",
+						FromStationId: "b",
+						ToStationId:   "e",
 					},
 				},
 			}
@@ -191,10 +181,10 @@ func subscribeRecommendSupply(client *sxutil.SXServiceClient) {
 }
 
 func supplyJsonRecordCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
-	log.Printf("Received JsonRecord Supply: Supply %+v, JSON: %s", sp, sp.ArgJson)
+	// log.Printf("Received JsonRecord Supply: Supply %+v, JSON: %s", sp, sp.ArgJson)
 	ta := gjson.Get(sp.ArgJson, TrafficAccident)
 	if ta.Type == gjson.JSON {
-		log.Printf("TrafficAccident: %+v", ta.Value())
+		log.Printf("Received JsonRecord Supply: Supply %+v, JSON: %s", sp, sp.ArgJson)
 
 		if *num == 1 {
 			wantBusCanAddTemp = true
@@ -396,7 +386,7 @@ func wantBusCanAddTempHandler(w http.ResponseWriter, r *http.Request) {
 	status := BusCanAdd{Want: false}
 	if wantBusCanAddTemp {
 		status.Want = true
-		status.FromStation = "b"
+		status.FromStation = "B"
 		status.ToStation = "C"
 		wantBusCanAddTemp = false
 	}
