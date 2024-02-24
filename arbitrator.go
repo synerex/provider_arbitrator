@@ -463,7 +463,7 @@ func main() {
 	http.HandleFunc("/api/v0/post_bus_can_diagram_adjust", postBusCanDiagramAdjustHandler)
 	http.HandleFunc("/api/v0/want_bus_can_add_temp", wantBusCanAddTempHandler)
 	http.HandleFunc("/api/v0/post_bus_can_add_temp", postBusCanAddTempHandler)
-	fmt.Println("Server is running on port 804%d", *num)
+	fmt.Printf("Server is running on port 804%d\n", *num)
 	go http.ListenAndServe(fmt.Sprintf(":804%d", *num), nil)
 	wg.Wait()
 }
