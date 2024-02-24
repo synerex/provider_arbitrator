@@ -70,10 +70,9 @@ type BusCanDiagramAdjust struct {
 }
 
 type BusCanAdd struct {
-	Want                bool   `json:"want"`
-	Area                string `json:"area"`
-	Index               int    `json:"index"`
-	DemandDepartureTime int    `json:"demand_departure_time"`
+	Want        bool   `json:"want"`
+	FromStation string `json:"from_station"`
+	ToStation   string `json:"to_station"`
 }
 
 func supplyRecommendDemandCallback(clt *sxutil.SXServiceClient, dm *api.Demand) {
@@ -198,37 +197,7 @@ func supplyJsonRecordCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 		log.Printf("TrafficAccident: %+v", ta.Value())
 
 		if *num == 1 {
-			// wantBusCanAddTemp = true
-			// 90% の確率で臨時便を調達できると判断するとして NotifyDemand を実行
-			randomNumber := rand.Intn(10)
-			if randomNumber < 9 {
-				dmo := sxutil.DemandOpts{
-					Name: role,
-					JSON: fmt.Sprintf(`{ "type": "臨時便", "vehicle": "マイクロバス", "date": "ASAP", "from": "岩倉駅", "to": "江南駅", "stops": "none", "way": "round-trip", "repetition": 4 }`),
-				}
-				dmid, nerr := rcmClient.NotifyDemand(&dmo)
-				if nerr != nil {
-					log.Printf("#1 NotifyDemand Fail! %v\n", nerr)
-				} else {
-					log.Printf("#1 NotifyDemand OK! dmo: %#v, dmid: %d\n", dmo, dmid)
-					arbitratorStatus = &ArbitratorStatus{
-						ShouldSupplyTemp:   true,
-						ShouldSupplyAdjust: false,
-						BusStop:            "b",
-						IsUp:               false,
-						IsStartingPoint:    true,
-						TravelTime:         22,
-						Line:               "tempbus",
-						End:                "C",
-						ArrivalTime:        70,
-						Next:               "C",
-						DepartureTime:      80,
-						ID:                 9999,
-					}
-				}
-			} else {
-				log.Printf("臨時便調達不能…\n")
-			}
+			wantBusCanAddTemp = true
 		}
 		if *num == 2 {
 			wantBusCanDiagramAdjust = true
@@ -353,15 +322,37 @@ func wantBusCanDiagramAdjustHandler(w http.ResponseWriter, r *http.Request) {
 // シミュレータから Arbitrator に臨時便を調達できそうかどうかを返してもらう
 // 注：現在は臨時便の調達可否をシミュレータから受け取らないので、使ってない
 func postBusCanAddTempHandler(w http.ResponseWriter, r *http.Request) {
-	// indexStr := r.URL.Query().Get("index")
-	// index, err := strconv.Atoi(indexStr)
-	// demandDepartureTimeStr := r.URL.Query().Get("demand_departure_time")
-	// demandDepartureTime, err2 := strconv.Atoi(demandDepartureTimeStr)
+	busstop := r.URL.Query().Get("busstop")
+	isUp := r.URL.Query().Get("is_up") == "True"
+	isStartingPoint := r.URL.Query().Get("is_starting_point") == "True"
+	travelTimeStr := r.URL.Query().Get("travel_time")
+	travelTime, err := strconv.Atoi(travelTimeStr)
+	if err != nil {
+		log.Printf("Error in travelTimeStr: %s, err: %v\n", travelTimeStr, err)
+	}
+	line := r.URL.Query().Get("line")
+	end := r.URL.Query().Get("end")
+	arrivalTimeStr := r.URL.Query().Get("arrival_time")
+	arrivalTime, err := strconv.Atoi(arrivalTimeStr)
+	if err != nil {
+		log.Printf("Error in arrivalTimeStr: %s, err: %v\n", arrivalTimeStr, err)
+	}
+	next := r.URL.Query().Get("next")
+	departureTimeStr := r.URL.Query().Get("departure_time")
+	departureTime, err := strconv.Atoi(departureTimeStr)
+	if err != nil {
+		log.Printf("Error in departureTimeStr: %s, err: %v\n", departureTimeStr, err)
+	}
+	busIDStr := r.URL.Query().Get("bus_id")
+	busID, err := strconv.Atoi(busIDStr)
+	if err != nil {
+		log.Printf("Error in busIDStr: %s, err: %v\n", busIDStr, err)
+	}
 
 	// if err == nil && err2 == nil && index > 0 {
 	dmo := sxutil.DemandOpts{
 		Name: role,
-		JSON: fmt.Sprintf(`{ "type": "%s", "vehicle": "マイクロバス", "date": "ASAP", "from": "岩倉駅", "to": "江南駅", "stops": "none", "way": "round-trip", "repetition": 4 }`, 臨時便),
+		JSON: fmt.Sprintf(`{ "type": "%s", "vehicle": "マイクロバス", "date": "ASAP", "from": "%s", "to": "%s", "stops": "none", "way": "round-trip", "repetition": 4 }`, 臨時便, busstop, next),
 	}
 	dmid, nerr := rcmClient.NotifyDemand(&dmo)
 	if nerr != nil {
@@ -371,21 +362,21 @@ func postBusCanAddTempHandler(w http.ResponseWriter, r *http.Request) {
 		arbitratorStatus = &ArbitratorStatus{
 			ShouldSupplyTemp:   true,
 			ShouldSupplyAdjust: false,
-			BusStop:            "b",
-			IsUp:               false,
-			IsStartingPoint:    true,
-			TravelTime:         22,
-			Line:               "tempbus",
-			End:                "C",
-			ArrivalTime:        70,
-			Next:               "C",
-			DepartureTime:      80,
-			ID:                 9999,
+			BusStop:            busstop,
+			IsUp:               isUp,
+			IsStartingPoint:    isStartingPoint,
+			TravelTime:         travelTime,
+			Line:               line,
+			End:                end,
+			ArrivalTime:        arrivalTime,
+			Next:               next,
+			DepartureTime:      departureTime,
+			ID:                 busID,
 		}
 	}
 	// }
 
-	status := BusCanAdd{Want: false, Area: "B"}
+	status := BusCanAdd{Want: false, FromStation: busstop, ToStation: next}
 
 	log.Printf("Called /api/v0/post_bus_can_add_temp -> Response: %+v\n", status)
 	response, err := json.Marshal(status)
@@ -405,7 +396,8 @@ func wantBusCanAddTempHandler(w http.ResponseWriter, r *http.Request) {
 	status := BusCanAdd{Want: false}
 	if wantBusCanAddTemp {
 		status.Want = true
-		status.Area = "B"
+		status.FromStation = "b"
+		status.ToStation = "C"
 		wantBusCanAddTemp = false
 	}
 
