@@ -47,19 +47,20 @@ func init() {
 }
 
 type ArbitratorStatus struct {
-	ShouldSupplyTemp   bool   `json:"should_supply_temp"`
-	ShouldSupplyAdjust bool   `json:"should_supply_adjust"`
-	BusStop            string `json:"busstop"`
-	IsUp               bool   `json:"is_up"`
-	IsStartingPoint    bool   `json:"is_starting_point"`
-	TravelTime         int    `json:"travel_time"`
-	Line               string `json:"line"`
-	End                string `json:"end"`
-	ArrivalTime        int    `json:"arrival_time"`
-	Next               string `json:"next"`
-	DepartureTime      int    `json:"departure_time"`
-	ID                 int    `json:"id"`
-	Index              int    `json:"index"`
+	ShouldSupplyTemp    bool   `json:"should_supply_temp"`
+	ShouldSupplyAdjust  bool   `json:"should_supply_adjust"`
+	BusStop             string `json:"busstop"`
+	IsUp                bool   `json:"is_up"`
+	IsStartingPoint     bool   `json:"is_starting_point"`
+	TravelTime          int    `json:"travel_time"`
+	Line                string `json:"line"`
+	End                 string `json:"end"`
+	ArrivalTime         int    `json:"arrival_time"`
+	Next                string `json:"next"`
+	DepartureTime       int    `json:"departure_time"`
+	DemandDepartureTime int    `json:"demand_departure_time"`
+	ID                  int    `json:"id"`
+	Index               int    `json:"index"`
 }
 
 type BusCanDiagramAdjust struct {
@@ -81,7 +82,7 @@ func supplyRecommendDemandCallback(clt *sxutil.SXServiceClient, dm *api.Demand) 
 		err := proto.Unmarshal(dm.Cdata.Entity, recommend)
 		if err == nil {
 			log.Printf("Received Recommend Demand: Demand %+v, Recommend %+v", dm, recommend)
-			if *num == 1 && recommend.RecommendName == "A" {
+			if (*num == 1 && recommend.RecommendName == "A") || (*num == 2 && recommend.RecommendName == "B") {
 				dmid, nerr := clt.SelectDemand(dm)
 				if nerr != nil {
 					log.Printf("#5 SelectDemand Fail! %v\n", nerr)
@@ -266,10 +267,10 @@ func postBusCanDiagramAdjustHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			log.Printf("#1 NotifyDemand OK! dmo: %#v, dmid: %d\n", dmo, dmid)
 			arbitratorStatus = &ArbitratorStatus{
-				ShouldSupplyTemp:   false,
-				ShouldSupplyAdjust: true,
-				DepartureTime:      demandDepartureTime,
-				Index:              index,
+				ShouldSupplyTemp:    false,
+				ShouldSupplyAdjust:  true,
+				DemandDepartureTime: demandDepartureTime,
+				Index:               index,
 			}
 		}
 	}
