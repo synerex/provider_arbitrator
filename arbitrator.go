@@ -126,6 +126,7 @@ func supplyRecommendSupplyCallback(clt *sxutil.SXServiceClient, sp *api.Supply) 
 						ToStationId:   "C",
 					},
 				},
+				DemandDepartureTime: uint32(arbitratorStatus.DepartureTime),
 			}
 			out, _ := proto.Marshal(gess)
 			cont := api.Content{Entity: out}
@@ -154,6 +155,7 @@ func supplyRecommendSupplyCallback(clt *sxutil.SXServiceClient, sp *api.Supply) 
 						ToStationId:   "e",
 					},
 				},
+				DemandDepartureTime: uint32(arbitratorStatus.DemandDepartureTime),
 			}
 			out, _ := proto.Marshal(gess)
 			cont := api.Content{Entity: out}
