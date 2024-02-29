@@ -32,13 +32,16 @@ var (
 	TrafficAccident         = "TrafficAccident"
 	rcmClient               *sxutil.SXServiceClient
 	typeProp                = "type"
+	departureTimeProp       = "departureTime"
 	臨時便                     = "臨時便"
 	ダイヤ調整                   = "ダイヤ調整"
 	pendingSp               *api.Supply
+	proposedSps             []*api.Supply
 	supplySeleted           = false
 	wantBusCanDiagramAdjust = false
 	wantBusCanAddTemp       = false
 	arbitratorStatus        = &ArbitratorStatus{}
+	isWaitingBusSupply      = false
 )
 
 func init() {
@@ -114,33 +117,7 @@ func supplyRecommendSupplyCallback(clt *sxutil.SXServiceClient, sp *api.Supply) 
 		log.Printf("Received JsonRecord Supply: Supply %+v, JSON: %s", sp, sp.ArgJson)
 		ta := gjson.Get(sp.ArgJson, typeProp)
 		if ta.Type == gjson.String && ta.Str == 臨時便 && *num == 1 { // Arbitrator 1
-			pendingSp = sp
-			log.Printf("Arbitrator %d: %s", *num, ta.Value())
-			gess := &rcm.Recommend{
-				RecommendId:   1,
-				RecommendName: "A",
-				RecommendSteps: []*rcm.RecommendStep{
-					{
-						MobilityType:  "tempbus",
-						FromStationId: "b",
-						ToStationId:   "C",
-					},
-				},
-				DemandDepartureTime: uint32(arbitratorStatus.DepartureTime),
-			}
-			out, _ := proto.Marshal(gess)
-			cont := api.Content{Entity: out}
-			spo := sxutil.SupplyOpts{
-				Name:  role,
-				Cdata: &cont,
-				JSON:  `{ "outlook": "2024/03/01 21:00", "cost": "600,000円", "CO2kg": 22.5 }`,
-			}
-			spid, nerr := clt.NotifySupply(&spo)
-			if nerr != nil {
-				log.Printf("#3-1 NotifySupply Fail! %v\n", nerr)
-			} else {
-				log.Printf("#3-1 NotifySupply OK! spo: %#v, spid: %d\n", spo, spid)
-			}
+			proposedSps = append(proposedSps, sp)
 		}
 		if ta.Type == gjson.String && ta.Str == ダイヤ調整 && *num == 2 { // Arbitrator 2
 			pendingSp = sp
@@ -190,7 +167,69 @@ func supplyJsonRecordCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 		log.Printf("Received JsonRecord Supply: Supply %+v, JSON: %s", sp, sp.ArgJson)
 
 		if *num == 1 {
-			wantBusCanAddTemp = true
+			if !isWaitingBusSupply {
+				// if err == nil && err2 == nil && index > 0 {
+				busstop := "B"
+				next := "C"
+				dmo := sxutil.DemandOpts{
+					Name: role,
+					JSON: fmt.Sprintf(`{ "type": "%s", "vehicle": "マイクロバス", "date": "ASAP", "from": "%s", "to": "%s", "stops": "none", "way": "round-trip", "repetition": 4 }`, 臨時便, busstop, next),
+				}
+				dmid, nerr := rcmClient.NotifyDemand(&dmo)
+				if nerr != nil {
+					log.Printf("#1 NotifyDemand Fail! %v\n", nerr)
+				} else {
+					log.Printf("#1 NotifyDemand OK! dmo: %#v, dmid: %d\n", dmo, dmid)
+					arbitratorStatus = &ArbitratorStatus{
+						ShouldSupplyTemp:   true,
+						ShouldSupplyAdjust: false,
+						BusStop:            busstop,
+						Next:               next,
+						DepartureTime:      9999,
+					}
+				}
+				// }
+
+				isWaitingBusSupply = true
+				time.AfterFunc(5*time.Second, func() {
+					isWaitingBusSupply = false
+					// departureTime が最早の臨時便を選ぶ
+					for _, sp := range proposedSps {
+						departureTime := gjson.Get(sp.ArgJson, departureTimeProp)
+						if departureTime.Type == gjson.Number && departureTime.Int() < int64(arbitratorStatus.DepartureTime) {
+							pendingSp = sp
+							arbitratorStatus.DepartureTime = int(departureTime.Int())
+						}
+					}
+					ta := gjson.Get(pendingSp.ArgJson, typeProp)
+					gess := &rcm.Recommend{
+						RecommendId:   1,
+						RecommendName: "A",
+						RecommendSteps: []*rcm.RecommendStep{
+							{
+								MobilityType:  "tempbus",
+								FromStationId: "b",
+								ToStationId:   "C",
+							},
+						},
+						DemandDepartureTime: uint32(arbitratorStatus.DepartureTime),
+					}
+					log.Printf("Arbitrator %d: %s %v", *num, ta.Value(), gess)
+					out, _ := proto.Marshal(gess)
+					cont := api.Content{Entity: out}
+					spo := sxutil.SupplyOpts{
+						Name:  role,
+						Cdata: &cont,
+						JSON:  `{ "outlook": "2024/03/01 21:00", "cost": "600,000円", "CO2kg": 22.5 }`,
+					}
+					spid, nerr := rcmClient.NotifySupply(&spo)
+					if nerr != nil {
+						log.Printf("#3-1 NotifySupply Fail! %v\n", nerr)
+					} else {
+						log.Printf("#3-1 NotifySupply OK! spo: %#v, spid: %d\n", spo, spid)
+					}
+				})
+			}
 		}
 		if *num == 2 {
 			wantBusCanDiagramAdjust = true
