@@ -207,6 +207,7 @@ func supplyJsonRecordCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 							arbitratorStatus.TravelTime = int(gjson.Get(sp.ArgJson, "travelTime").Int())
 							arbitratorStatus.Line = gjson.Get(sp.ArgJson, "line").String()
 							arbitratorStatus.End = gjson.Get(sp.ArgJson, "end").String()
+							arbitratorStatus.BusStop = gjson.Get(sp.ArgJson, "from").String()
 						}
 					}
 					ta := gjson.Get(pendingSp.ArgJson, typeProp)
