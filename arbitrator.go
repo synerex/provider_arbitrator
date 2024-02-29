@@ -199,6 +199,14 @@ func supplyJsonRecordCallback(clt *sxutil.SXServiceClient, sp *api.Supply) {
 						if departureTime.Type == gjson.Number && departureTime.Int() < int64(arbitratorStatus.DepartureTime) {
 							pendingSp = sp
 							arbitratorStatus.DepartureTime = int(departureTime.Int())
+							arbitratorStatus.ArrivalTime = int(gjson.Get(sp.ArgJson, "arrivalTime").Int())
+							arbitratorStatus.DemandDepartureTime = arbitratorStatus.DepartureTime
+							arbitratorStatus.ID = int(gjson.Get(sp.ArgJson, "busID").Int())
+							arbitratorStatus.IsUp = gjson.Get(sp.ArgJson, "isUp").Bool()
+							arbitratorStatus.IsStartingPoint = gjson.Get(sp.ArgJson, "isStartingPoint").Bool()
+							arbitratorStatus.TravelTime = int(gjson.Get(sp.ArgJson, "travelTime").Int())
+							arbitratorStatus.Line = gjson.Get(sp.ArgJson, "line").String()
+							arbitratorStatus.End = gjson.Get(sp.ArgJson, "end").String()
 						}
 					}
 					ta := gjson.Get(pendingSp.ArgJson, typeProp)
